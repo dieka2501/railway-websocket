@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login - ESP32 Drawbook</title>
+  <style>
+    :root { color-scheme: light; font-family: Arial, sans-serif; }
+    body { max-width: 420px; margin: 64px auto; padding: 0 16px; color: #202124; }
+    h1 { font-size: 1.5rem; }
+    form { display: grid; gap: 12px; margin-top: 24px; }
+    input, button { box-sizing: border-box; width: 100%; padding: 10px; border: 1px solid #777; border-radius: 4px; }
+    button { background: #202124; color: white; cursor: pointer; }
+    #error { min-height: 1.25em; color: #8a1c1c; }
+  </style>
+</head>
+<body>
+  <h1>ESP32 Drawbook Login</h1>
+  <form action="/login" method="post">
+    <label for="secret-key">Secret key</label>
+    <input id="secret-key" name="secret_key" type="password" autocomplete="current-password" required>
+    <button type="submit">Log in</button>
+  </form>
+  <p id="error" role="alert" aria-live="polite"></p>
+  <script>
+    if (new URLSearchParams(location.search).has('error')) {
+      document.getElementById('error').textContent = 'Invalid secret key';
+    }
+  </script>
+</body>
+</html>

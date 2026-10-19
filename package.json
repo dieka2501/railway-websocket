@@ -1,0 +1,17 @@
+{
+  "name": "esp32-ac-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "R&D WebSocket gateway and Drawbook test client for an ESP32-S3 AC remote",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "bash ./dev.sh",
+    "dev:watch": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
