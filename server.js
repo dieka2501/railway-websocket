@@ -72,6 +72,20 @@ app.get('/drawbook', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
+app.use('/firmware', (req, res, next) => {
+  if (req.path.endsWith('/manifest.json')) {
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  } else if (/\.bin$/i.test(req.path)) {
+    // Release binaries have versioned names and never change after publication.
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+  next();
+});
+app.use('/firmware', express.static(path.join(__dirname, 'firmware', 'releases'), {
+  dotfiles: 'deny',
+  fallthrough: true,
+  index: false
+}));
 app.get('/status', (req, res) => {
   if (!safeSecretMatch(req.get('x-secret-key'), process.env.SECRET_KEY)) {
     res.status(401).json({ status: 'error', message: 'Unauthorized' });

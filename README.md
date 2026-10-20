@@ -50,4 +50,70 @@ The server rejects missing or incorrect keys/tokens. Keep `.env` and real secret
 5. In the service's Networking settings, generate a public domain. Use that domain to open `https://<railway-domain>/` and check `https://<railway-domain>/health`. To check `/status`, send the `x-secret-key` header as shown above.
 6. The WebSocket URL is `wss://<railway-domain>/ws`; Drawbook builds this URL from the current page automatically.
 
-No database, Dockerfile, or firmware changes are required for this test stage.
+No database or Dockerfile is required. The browser-only test works without the
+firmware; use the sketch below when you are ready to connect the ESP32-S3.
+
+## ESP32-S3 firmware
+
+An Arduino sketch that connects the ESP32-S3 to the Railway gateway and draws
+received frames on the SSD1306 OLED is in `firmware/esp32_drawbook/`.
+
+Install the Arduino libraries
+`WebSockets` by Markus Sattler (Links2004), `Adafruit GFX Library`,
+`Adafruit SSD1306`, and `ArduinoJson` in Arduino IDE. Select an ESP32-S3
+partition scheme with OTA support. The sketch uses TLS certificate validation
+for the Railway WSS connection and registers as `esp32-ac-01`.
+
+On the first USB flash, open Serial Monitor at 115200 baud, set line ending to
+**Newline**, and send one JSON line with the Wi-Fi and Railway device token,
+for example:
+
+```json
+{"ssid":"YOUR_WIFI_SSID","password":"YOUR_WIFI_PASSWORD","device_token":"YOUR_RAILWAY_DEVICE_TOKEN"}
+```
+
+The device stores this configuration in NVS and restarts. OTA updates replace
+the application partition and preserve the saved configuration, so secrets do
+not need to be compiled into or published with firmware binaries.
+
+After it connects, the Drawbook should report the device as online. A frame is
+128 × 32 pixels, sent as 4096 `0`/`1` characters, then rendered on the OLED.
+When the gateway is online and no new Drawbook frame arrives for 25 seconds,
+the OLED scrolls `Sudah 25 detik nih!` from right to left. A new frame replaces
+the screen saver immediately.
+
+## Firmware auto-update
+
+The existing Drawbook behavior remains the default firmware function. The
+firmware checks the public release manifest at
+`/firmware/esp32-ac-01/manifest.json` at startup and every six hours. It only
+installs a newer `MAJOR.MINOR.PATCH` release for the `esp32-s3` board. The
+download uses the same verified HTTPS root certificate as the gateway and
+checks the binary's SHA-256 from the manifest before flashing. The initial
+manifest was disabled; the current local manifest enables release 1.0.1,
+`screen saver`. Deploy the release files and gateway changes before restarting
+the device to receive it.
+
+To publish a release:
+
+1. Increase `FIRMWARE_VERSION` in `firmware/esp32_drawbook/esp32_drawbook.ino`
+   (for example, from `1.0.0` to `1.0.1`) and compile the sketch for the same
+   ESP32-S3 board and OTA-capable partition scheme used for the device.
+2. In Arduino IDE, use **Sketch → Export compiled Binary** and locate the
+   resulting `.bin` file.
+3. Run `npm run firmware:release -- 1.0.1 /absolute/path/to/compiled.bin "screen saver"`.
+   The command checks the sketch version, copies the versioned binary into
+   `firmware/releases/esp32-ac-01/`, and writes its name, SHA-256, and version
+   to the manifest.
+4. Commit the source version, manifest, and generated release binary, then
+   deploy the service. For an immediate check, restart the device after the
+   deployment; otherwise it checks again within six hours. To test OTA, export
+   the `.bin` without uploading that new version over USB.
+
+The first install still needs to be flashed over USB with an OTA-capable
+partition layout and provisioned once over Serial. Later releases can be
+installed by the firmware updater.
+
+For implementation details, known build constraints, the current release
+state, and a continuation handoff, see
+[`firmware/PROJECT_CONTEXT.md`](firmware/PROJECT_CONTEXT.md).

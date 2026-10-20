@@ -1,0 +1,8 @@
+{
+  "board": "esp32-s3",
+  "enabled": true,
+  "name": "screen saver",
+  "version": "1.0.1",
+  "firmware_path": "/firmware/esp32-ac-01/drawbook-v1.0.1.bin",
+  "sha256": "0428138e26f18a0e43473aa230df8a40529773e84e9ea0ef50ce6dbaaa3f8eff"
+}

@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "bash ./dev.sh",
-    "dev:watch": "node --watch server.js"
+    "dev:watch": "node --watch server.js",
+    "firmware:release": "node scripts/publish-firmware.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
