@@ -1,8 +1,8 @@
 {
   "board": "esp32-s3",
   "enabled": true,
-  "name": "HX1838 USB serial diagnostics",
-  "version": "1.0.5",
-  "firmware_path": "/firmware/esp32-ac-01/drawbook-v1.0.5.bin",
-  "sha256": "fe6dd49aab0d8039522fa2282af155f9894a6593a19eb21327c8c905131bfcad"
+  "name": "HX1838 GPIO activity diagnostics",
+  "version": "1.0.6",
+  "firmware_path": "/firmware/esp32-ac-01/drawbook-v1.0.6.bin",
+  "sha256": "cb012d525a5a256db2bd66ebd02c56bff0d033b0f6e710312dbfe755de6f05e8"
 }

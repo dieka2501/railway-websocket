@@ -62,10 +62,10 @@ release guide.
   `mbedtls_sha256_finish`; the `_ret` variants failed to compile here. Keep the
   non-`_ret` calls in `FirmwareOTA.h` for this core unless the core API changes.
 
-## Current firmware: HX1838 USB serial diagnostics 1.0.5
+## Current firmware: HX1838 GPIO activity diagnostics 1.0.6
 
-- Firmware version in `esp32_drawbook.ino`: `1.0.5`.
-- Release name: `HX1838 USB serial diagnostics`.
+- Firmware version in `esp32_drawbook.ino`: `1.0.6`.
+- Release name: `HX1838 GPIO activity diagnostics`.
 - IR receive pin: GPIO7. `IRReceiverFeature.h` uses the existing IRremoteESP8266
   2.9.0 dependency, a 4096-entry capture buffer, and a 100 ms timeout. The raw
   timing capture remains available in RAM through the feature's accessors until
@@ -76,19 +76,22 @@ release guide.
   results, or two raw timing pages. Drawbook frames still render normally; an
   IR capture temporarily takes the display. No inactivity running text is used.
 - IR diagnostics: startup prints the receiver, GPIO, firmware version, and OTA
-  status. A two-second serial heartbeat reports GPIO7's level and capture
-  count. A successful capture logs protocol, address/command when available,
-  bit count, repeat status, raw length, overflow state, and every raw timing.
-  The OLED reports the GPIO7 level rather than claiming that a receiver module
-  is physically present.
+  status. A two-second serial heartbeat reports GPIO7's level, capture count,
+  and loop-sampled GPIO transitions/low samples. Those samples help tell
+  whether activity reaches GPIO7 when the decoder has not completed a frame;
+  they may miss short pulses, while IRremoteESP8266's interrupt capture remains
+  responsible for the raw timings. A successful capture logs protocol,
+  address/command when available, bit count, repeat status, raw length,
+  overflow state, and every raw timing. The OLED reports the GPIO7 level rather
+  than claiming that a receiver module is physically present.
 - Joystick: no joystick integration exists in this firmware, so IR capture is
   independent of it.
 - The OLED keeps its current waiting screen or last Drawbook frame indefinitely
   until another event changes it.
 - Release binary is generated at
-  `firmware/releases/esp32-ac-01/drawbook-v1.0.5.bin`.
+  `firmware/releases/esp32-ac-01/drawbook-v1.0.6.bin`.
 - Release manifest:
-  `firmware/releases/esp32-ac-01/manifest.json` (target version 1.0.5).
+  `firmware/releases/esp32-ac-01/manifest.json` (target version 1.0.6).
 - Build with Arduino-ESP32 core 3.3.12 and FQBN
   `esp32:esp32:esp32s3`, explicitly setting `USBMode=hwcdc,CDCOnBoot=cdc`.
   The 1.0.4 build used `build.cdc_on_boot=0`, which routed `Serial` away from
@@ -98,8 +101,9 @@ release guide.
   Match the board and OTA partition settings used by the installed device when
   building later firmware; do not publish a binary built for a different
   partition layout.
-- Firmware 1.0.5 enables native USB CDC for Serial logs. The existing OTA
-  mechanism, Wi-Fi, WebSocket, OLED, and Drawbook remain enabled.
+- Firmware 1.0.6 adds GPIO7 activity diagnostics and retains native USB CDC for
+  Serial logs. The existing OTA mechanism, Wi-Fi, WebSocket, OLED, and Drawbook
+  remain enabled.
 
 ## Publish and verify a future OTA release
 
@@ -121,7 +125,7 @@ release guide.
    so its `/firmware` route serves the release. Keep the device on its older
    firmware until the release is deployed.
 5. Restart the board. Monitor Serial at 115200 baud for an OTA log such as
-   `[OTA] Updating HX1838 USB serial diagnostics (version 1.0.5).` After reboot,
+   `[OTA] Updating HX1838 GPIO activity diagnostics (version 1.0.6).` After reboot,
    confirm the expected firmware behavior. If not restarted, the next check can
    take up to six hours.
 

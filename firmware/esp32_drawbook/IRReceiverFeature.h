@@ -25,6 +25,7 @@ class IRReceiverFeature {
     receiver_.setUnknownThreshold(kUnknownThreshold);
 #endif
     receiver_.enableIRIn();
+    previousPinLevel_ = digitalRead(RECEIVER_PIN);
     Serial.println();
     Serial.println("HX1838 IR Receiver Test");
     Serial.printf("GPIO      : %u\n", RECEIVER_PIN);
@@ -33,6 +34,7 @@ class IRReceiverFeature {
     Serial.println("OTA       : enabled");
     Serial.printf("Capture   : %u entries, %u ms gap timeout\n",
                   CAPTURE_BUFFER_SIZE, CAPTURE_TIMEOUT_MS);
+    Serial.println("GPIO probe: loop-level sampling enabled");
     Serial.println("Waiting for IR signal...");
     logPinLevel();
     lastStatusLogAt_ = millis();
@@ -40,14 +42,31 @@ class IRReceiverFeature {
 
   // Keep a periodic serial heartbeat so a monitor opened after boot still
   // confirms that the firmware is running and shows the receiver pin level.
+  // This also samples the demodulated output independently of IR decoding.
+  void samplePinActivity() {
+    const int level = digitalRead(RECEIVER_PIN);
+    pinSampleCount_++;
+    if (level == LOW) pinLowSampleCount_++;
+    if (level != previousPinLevel_) {
+      pinTransitionCount_++;
+      previousPinLevel_ = level;
+    }
+  }
+
   void logStatusIfDue() {
     const unsigned long now = millis();
     if (now - lastStatusLogAt_ < SERIAL_STATUS_INTERVAL_MS) return;
     lastStatusLogAt_ = now;
-    Serial.printf("Waiting for IR signal... GPIO%u=%s, captures=%lu\n",
+    Serial.printf("Waiting for IR signal... GPIO%u=%s, captures=%lu, probe_edges=%lu, low_samples=%lu/%lu\n",
                   RECEIVER_PIN,
                   digitalRead(RECEIVER_PIN) == HIGH ? "HIGH" : "LOW",
-                  static_cast<unsigned long>(captureCount_));
+                  static_cast<unsigned long>(captureCount_),
+                  static_cast<unsigned long>(pinTransitionCount_),
+                  static_cast<unsigned long>(pinLowSampleCount_),
+                  static_cast<unsigned long>(pinSampleCount_));
+    pinTransitionCount_ = 0;
+    pinLowSampleCount_ = 0;
+    pinSampleCount_ = 0;
   }
 
   void showStartup(const char* firmwareVersion) {
@@ -161,6 +180,10 @@ class IRReceiverFeature {
   unsigned long captureStartedAt_ = 0;
   unsigned long lastStatusLogAt_ = 0;
   unsigned long captureCount_ = 0;
+  uint32_t pinTransitionCount_ = 0;
+  uint32_t pinLowSampleCount_ = 0;
+  uint32_t pinSampleCount_ = 0;
+  int previousPinLevel_ = HIGH;
   int8_t renderedCapturePage_ = -1;
   char protocolName_[32] = "UNKNOWN";
 
