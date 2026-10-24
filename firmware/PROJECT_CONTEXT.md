@@ -62,38 +62,42 @@ release guide.
   `mbedtls_sha256_finish`; the `_ret` variants failed to compile here. Keep the
   non-`_ret` calls in `FirmwareOTA.h` for this core unless the core API changes.
 
-## Current firmware: IR diagnostics and boot version screen 1.0.3
+## Current firmware: HX1838 receive diagnostics 1.0.4
 
-- Firmware version in `esp32_drawbook.ino`: `1.0.3`.
-- Release name: `IR diagnostics and boot version screen`.
-- IR receive pin: GPIO7. `IRReceiverFeature.h` uses IRremoteESP8266 2.9.0,
-  a 1024-entry capture buffer, and a 50 ms timeout. The saved raw timing data
-  remains available in RAM through the feature's accessors until another
-  capture replaces it. Unknown protocols use the library's hash fallback and
-  keep the raw timing buffer.
+- Firmware version in `esp32_drawbook.ino`: `1.0.4`.
+- Release name: `HX1838 receive diagnostics`.
+- IR receive pin: GPIO7. `IRReceiverFeature.h` uses the existing IRremoteESP8266
+  2.9.0 dependency, a 4096-entry capture buffer, and a 100 ms timeout. The raw
+  timing capture remains available in RAM through the feature's accessors until
+  another capture replaces it. Unknown protocols keep and print all captured
+  timings. Decoded repeat status is also reported.
 - OLED: shows the firmware version for at least five seconds on every boot,
   including during Wi-Fi connection. It then shows waiting, decoded/unknown
   results, or two raw timing pages. Drawbook frames still render normally; an
   IR capture temporarily takes the display. No inactivity running text is used.
-- IR diagnostics: startup logs the GPIO7 idle level; a successful capture logs
-  `IR RECEIVED`, protocol, bit count, raw length, overflow status, and a timing
-  preview. A receiver idle level of LOW can indicate a wiring or module issue.
+- IR diagnostics: startup prints the receiver, GPIO, firmware version, and OTA
+  status. A two-second serial heartbeat reports GPIO7's level and capture
+  count. A successful capture logs protocol, address/command when available,
+  bit count, repeat status, raw length, overflow state, and every raw timing.
+  The OLED reports the GPIO7 level rather than claiming that a receiver module
+  is physically present.
 - Joystick: no joystick integration exists in this firmware, so IR capture is
   independent of it.
 - The OLED keeps its current waiting screen or last Drawbook frame indefinitely
   until another event changes it.
-- Release binary: `firmware/releases/esp32-ac-01/drawbook-v1.0.3.bin`.
+- Release binary is generated at
+  `firmware/releases/esp32-ac-01/drawbook-v1.0.4.bin`.
 - Release manifest:
-  `firmware/releases/esp32-ac-01/manifest.json` (currently enabled for 1.0.3).
+  `firmware/releases/esp32-ac-01/manifest.json` (target version 1.0.4).
 - The binary was compiled with Arduino-ESP32 core 3.3.12 and FQBN
   `esp32:esp32:esp32s3`, using the default 4 MB partition scheme. The binary is
-  1,208,224 bytes; the compile report used 1,208,081 of 1,310,720 app bytes for
-  firmware 1.0.3, leaving about 102 KB before the OTA app slot limit.
+  1,208,736 bytes; the compile report used 1,208,593 of 1,310,720 app bytes,
+  leaving about 102 KB before the OTA app slot limit. Keep the increased raw
+  capture buffer within the same partition layout.
   Match the board and OTA partition settings used by the installed device when
   building later firmware; do not publish a binary built for a different
   partition layout.
-- Firmware 1.0.2 was built and prepared for OTA. Firmware 1.0.3 is built and
-  prepared for deployment to Railway.
+- Firmware 1.0.4 is built and prepared for deployment to Railway.
 
 ## Publish and verify a future OTA release
 
@@ -114,7 +118,7 @@ release guide.
    so its `/firmware` route serves the release. Keep the device on its older
    firmware until the release is deployed.
 5. Restart the board. Monitor Serial at 115200 baud for an OTA log such as
-   `[OTA] Updating IR diagnostics and boot version screen (version 1.0.3).` After reboot,
+   `[OTA] Updating HX1838 receive diagnostics (version 1.0.4).` After reboot,
    confirm the expected firmware behavior. If not restarted, the next check can
    take up to six hours.
 

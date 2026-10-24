@@ -16,7 +16,7 @@ constexpr int OLED_WIDTH = 128;
 constexpr int OLED_HEIGHT = 32;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 constexpr size_t FRAME_SIZE = OLED_WIDTH * OLED_HEIGHT;
-constexpr char FIRMWARE_VERSION[] = "1.0.3";
+constexpr char FIRMWARE_VERSION[] = "1.0.4";
 constexpr char FIRMWARE_BOARD[] = "esp32-s3";
 constexpr unsigned long BOOT_VERSION_SCREEN_MS = 5000;
 
@@ -271,16 +271,11 @@ void setup() {
     Serial.println("OLED initialization failed.");
     while (true) delay(1000);
   }
-  irReceiver.begin();
+  irReceiver.begin(FIRMWARE_VERSION);
   irReceiver.showStartup(FIRMWARE_VERSION);
   holdBootVersionScreen = true;
-  Serial.println("HX1838 IR Receiver Test");
-  Serial.println("GPIO: 7");
   Serial.println("OLED: 128x32");
   Serial.println("OLED Address: 0x3C");
-  Serial.printf("FW: %s\n", FIRMWARE_VERSION);
-  Serial.println("OTA: ENABLED (existing FirmwareOTA)");
-  Serial.println("Waiting for IR...");
 
   if (!deviceConfig.load()) {
     holdBootVersionScreen = false;
@@ -327,6 +322,7 @@ void loop() {
   if (irReceiver.poll(!showVersionScreen)) {
     drawbookVisible = false;
   }
+  irReceiver.logStatusIfDue();
 
   webSocket.loop();
 

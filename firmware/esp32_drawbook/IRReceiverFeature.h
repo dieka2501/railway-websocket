@@ -11,22 +11,43 @@
 class IRReceiverFeature {
  public:
   static constexpr uint16_t RECEIVER_PIN = 7;
-  static constexpr uint16_t CAPTURE_BUFFER_SIZE = 1024;
+  static constexpr uint16_t CAPTURE_BUFFER_SIZE = 4096;
   static constexpr size_t MAX_RAW_TIMINGS = CAPTURE_BUFFER_SIZE - 1;
+  static constexpr uint8_t CAPTURE_TIMEOUT_MS = 100;
+  static constexpr unsigned long SERIAL_STATUS_INTERVAL_MS = 2000;
 
   explicit IRReceiverFeature(Adafruit_SSD1306& display)
-      : display_(display), receiver_(RECEIVER_PIN, CAPTURE_BUFFER_SIZE, 50, true) {}
+      : display_(display),
+        receiver_(RECEIVER_PIN, CAPTURE_BUFFER_SIZE, CAPTURE_TIMEOUT_MS, true) {}
 
-  void begin() {
+  void begin(const char* firmwareVersion) {
 #if DECODE_HASH
-    receiver_.setUnknownThreshold(12);
+    receiver_.setUnknownThreshold(kUnknownThreshold);
 #endif
     receiver_.enableIRIn();
-    Serial.printf("HX1838 IR receiver started on GPIO %u.\n", RECEIVER_PIN);
-    delay(10);
-    Serial.printf("[IR] GPIO%u idle level: %s\n", RECEIVER_PIN,
-                  digitalRead(RECEIVER_PIN) == HIGH ? "HIGH" : "LOW (check wiring)");
-    Serial.println("[IR] Press a remote button; decoded frames print as IR RECEIVED.");
+    Serial.println();
+    Serial.println("HX1838 IR Receiver Test");
+    Serial.printf("GPIO      : %u\n", RECEIVER_PIN);
+    Serial.println("Receiver  : HX1838");
+    Serial.printf("Firmware  : %s\n", firmwareVersion);
+    Serial.println("OTA       : enabled");
+    Serial.printf("Capture   : %u entries, %u ms gap timeout\n",
+                  CAPTURE_BUFFER_SIZE, CAPTURE_TIMEOUT_MS);
+    Serial.println("Waiting for IR signal...");
+    logPinLevel();
+    lastStatusLogAt_ = millis();
+  }
+
+  // Keep a periodic serial heartbeat so a monitor opened after boot still
+  // confirms that the firmware is running and shows the receiver pin level.
+  void logStatusIfDue() {
+    const unsigned long now = millis();
+    if (now - lastStatusLogAt_ < SERIAL_STATUS_INTERVAL_MS) return;
+    lastStatusLogAt_ = now;
+    Serial.printf("Waiting for IR signal... GPIO%u=%s, captures=%lu\n",
+                  RECEIVER_PIN,
+                  digitalRead(RECEIVER_PIN) == HIGH ? "HIGH" : "LOW",
+                  static_cast<unsigned long>(captureCount_));
   }
 
   void showStartup(const char* firmwareVersion) {
@@ -60,11 +81,13 @@ class IRReceiverFeature {
     usesACState_ = hasACState(result.decode_type);
     address_ = usesACState_ ? 0 : result.address;
     command_ = usesACState_ ? 0 : result.command;
+    repeat_ = result.repeat;
     overflow_ = result.overflow;
     const String protocolName = typeToString(protocol_);
     protocolName.toCharArray(protocolName_, sizeof(protocolName_));
 
     captured_ = true;
+    captureCount_++;
     captureStartedAt_ = millis();
     renderedCapturePage_ = -1;
     waitingRendered_ = false;
@@ -112,6 +135,7 @@ class IRReceiverFeature {
   bool captureOverflowed() const { return overflow_; }
   const char* protocolName() const { return protocolName_; }
   uint16_t bitCount() const { return bits_; }
+  unsigned long captureCount() const { return captureCount_; }
 
  private:
   static constexpr unsigned long INTRO_DURATION_MS = 500;
@@ -127,6 +151,7 @@ class IRReceiverFeature {
   uint32_t address_ = 0;
   uint32_t command_ = 0;
   bool usesACState_ = false;
+  bool repeat_ = false;
   bool overflow_ = false;
   bool captured_ = false;
   bool waitingRendered_ = false;
@@ -134,6 +159,8 @@ class IRReceiverFeature {
   bool lastWaitingWifi_ = false;
   bool lastWaitingGateway_ = false;
   unsigned long captureStartedAt_ = 0;
+  unsigned long lastStatusLogAt_ = 0;
+  unsigned long captureCount_ = 0;
   int8_t renderedCapturePage_ = -1;
   char protocolName_[32] = "UNKNOWN";
 
@@ -164,7 +191,8 @@ class IRReceiverFeature {
     prepareDisplay();
     printLine(0, "IR READY");
     printLine(8, "Waiting...");
-    printLine(16, "HX1838 OK GPIO7");
+    printLine(16, digitalRead(RECEIVER_PIN) == HIGH ? "GPIO7 LEVEL: HIGH"
+                                                     : "GPIO7 LEVEL: LOW");
     printLine(24, wifiConnected ? (gatewayOnline ? "WiFi:ON GW:ON" : "WiFi:ON GW:OFF")
                                 : "WiFi:OFF GW:OFF");
     display_.display();
@@ -189,7 +217,7 @@ class IRReceiverFeature {
         snprintf(line, sizeof(line), "BITS: %u", bits_);
         printLine(16, line);
       }
-      printLine(24, overflow_ ? "DATA OK BUF FULL" : "DATA OK");
+      printLine(24, overflow_ ? "BUF FULL / RAW SAVED" : "RAW DATA SAVED");
     } else {
       snprintf(line, sizeof(line), "IR: %.17s", protocolName_);
       printLine(0, line);
@@ -199,10 +227,9 @@ class IRReceiverFeature {
         printLine(16, "AC STATE CAPTURED");
         printLine(24, overflow_ ? "RAW OK BUF FULL" : "RAW DATA OK");
       } else {
-        snprintf(line, sizeof(line), "ADDR:0x%lX", static_cast<unsigned long>(address_));
+        snprintf(line, sizeof(line), "REPEAT: %s", repeat_ ? "YES" : "NO");
         printLine(16, line);
-        snprintf(line, sizeof(line), "CMD:0x%lX", static_cast<unsigned long>(command_));
-        printLine(24, line);
+        printLine(24, overflow_ ? "BUF FULL / RAW SAVED" : "RAW DATA SAVED");
       }
     }
     display_.display();
@@ -230,21 +257,42 @@ class IRReceiverFeature {
   }
 
   void logCapture() {
-    Serial.println("IR RECEIVED");
-    Serial.printf("Protocol: %s\n", protocolName_);
-    Serial.printf("Bits: %u\n", bits_);
-    Serial.printf("Raw length: %u\n", static_cast<unsigned>(rawTotalCount_));
-    Serial.printf("Capture buffer: %s\n", overflow_ ? "OVERFLOW" : "OK");
+    Serial.println("IR signal detected");
+    Serial.println("Decoding...");
+    if (protocol_ == UNKNOWN) {
+      Serial.println("\n=== UNKNOWN IR ===");
+      Serial.println("Raw data received : YES");
+    } else {
+      Serial.println("\n=== IR RECEIVED ===");
+    }
+    Serial.printf("Protocol          : %s\n", protocolName_);
     if (protocol_ != UNKNOWN && !usesACState_) {
-      Serial.printf("Address: 0x%lX\nCommand: 0x%lX\n",
-                    static_cast<unsigned long>(address_),
+      Serial.printf("Address           : 0x%lX\n",
+                    static_cast<unsigned long>(address_));
+      Serial.printf("Command           : 0x%lX\n",
                     static_cast<unsigned long>(command_));
+    } else if (usesACState_) {
+      Serial.println("Address/Command   : included in AC state");
+    } else {
+      Serial.println("Address/Command   : unavailable");
     }
-    const size_t previewCount = rawCount_ < 6 ? rawCount_ : 6;
-    Serial.print("Raw timings preview (us):");
-    for (size_t i = 0; i < previewCount; ++i) {
-      Serial.printf(" %lu", static_cast<unsigned long>(rawTimings_[i]) * kRawTick);
+    Serial.printf("Bits              : %u\n", bits_);
+    Serial.printf("Repeat            : %s\n", repeat_ ? "YES" : "NO");
+    Serial.printf("Raw length        : %u timings\n",
+                  static_cast<unsigned>(rawTotalCount_));
+    Serial.printf("Capture buffer    : %s\n", overflow_ ? "OVERFLOW (truncated)" : "OK");
+    Serial.println("Raw timings (us; lead-in idle gap omitted):");
+    for (size_t i = 0; i < rawCount_; ++i) {
+      if (i % 8 == 0) Serial.printf("  [%04u] ", static_cast<unsigned>(i));
+      Serial.printf("%lu", static_cast<unsigned long>(rawTimings_[i]) * kRawTick);
+      if (i + 1 < rawCount_) Serial.print(", ");
+      if (i % 8 == 7 || i + 1 == rawCount_) Serial.println();
     }
-    Serial.println();
+    Serial.println("===================\n");
+  }
+
+  void logPinLevel() {
+    Serial.printf("[IR] GPIO%u idle/current level: %s\n", RECEIVER_PIN,
+                  digitalRead(RECEIVER_PIN) == HIGH ? "HIGH" : "LOW");
   }
 };
