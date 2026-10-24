@@ -16,7 +16,7 @@ constexpr int OLED_WIDTH = 128;
 constexpr int OLED_HEIGHT = 32;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 constexpr size_t FRAME_SIZE = OLED_WIDTH * OLED_HEIGHT;
-constexpr char FIRMWARE_VERSION[] = "1.0.4";
+constexpr char FIRMWARE_VERSION[] = "1.0.5";
 constexpr char FIRMWARE_BOARD[] = "esp32-s3";
 constexpr unsigned long BOOT_VERSION_SCREEN_MS = 5000;
 

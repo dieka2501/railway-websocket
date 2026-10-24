@@ -65,7 +65,7 @@ Select the same ESP32-S3 partition scheme with OTA support used by the device.
 The sketch uses TLS certificate validation for the Railway WSS connection and
 registers as `esp32-ac-01`.
 
-The HX1838 infrared receiver OUT pin connects to GPIO7. Firmware 1.0.4 uses
+The HX1838 infrared receiver OUT pin connects to GPIO7. Firmware 1.0.5 uses
 IRremoteESP8266 2.9.0 in receive-only mode, with a 4096-entry raw capture buffer
 and a 100 ms inter-signal timeout. This preserves long spaces between sections
 of AC frames and keeps unknown-protocol timing data. The full latest raw capture
@@ -79,13 +79,13 @@ No joystick or IR transmitter is used in this receive-only test stage.
 
 ### Test the IR receiver
 
-With firmware 1.0.4 running, point an AC remote at the receiver and press a
+With firmware 1.0.5 running, point an AC remote at the receiver and press a
 button once. The OLED briefly shows `IR DETECTED / Decoding...`, then the
 protocol and bit count or an `UNKNOWN IR` raw-count page. Serial Monitor at
 115200 baud prints the capture, including repeat status and every raw timing.
 The test firmware only receives and learns IR signals; it does not transmit
 them. The existing OTA mechanism remains enabled and can distribute firmware
-1.0.4 from the manifest after the gateway deployment is updated.
+1.0.5 from the manifest after the gateway deployment is updated.
 
 On the first USB flash, open Serial Monitor at 115200 baud, set line ending to
 **Newline**, and send one JSON line with the Wi-Fi and Railway device token,
@@ -112,7 +112,7 @@ firmware checks the public release manifest at
 installs a newer `MAJOR.MINOR.PATCH` release for the `esp32-s3` board. The
 download uses the same verified HTTPS root certificate as the gateway and
 checks the binary's SHA-256 from the manifest before flashing. The current
-manifest targets release 1.0.4, `HX1838 receive diagnostics`. Deploy the
+manifest targets release 1.0.5, `HX1838 USB serial diagnostics`. Deploy the
 release files and gateway changes before restarting the device to receive it.
 To install it online, commit the source, release binary, and manifest together,
 then deploy the existing Railway service. Restart the ESP32 while it has Wi-Fi
@@ -122,11 +122,20 @@ SHA-256, installs the newer firmware, and restarts using the existing updater.
 To publish a release:
 
 1. Increase `FIRMWARE_VERSION` in `firmware/esp32_drawbook/esp32_drawbook.ino`
-   (for example, from `1.0.3` to `1.0.4`) and compile the sketch for the same
-   ESP32-S3 board and OTA-capable partition scheme used for the device.
+   and compile for the same ESP32-S3 board and OTA-capable partition scheme
+   used for the device. Enable **USB CDC On Boot** so `Serial` logs appear on
+   the native USB serial port. With Arduino CLI, use:
+
+   ```sh
+   arduino-cli compile --fqbn esp32:esp32:esp32s3 \
+     --board-options 'USBMode=hwcdc,CDCOnBoot=cdc' \
+     --output-dir /tmp/esp32-drawbook-build firmware/esp32_drawbook
+   ```
+
+   The application image is `esp32_drawbook.ino.bin`.
 2. In Arduino IDE, use **Sketch → Export compiled Binary** and locate the
-   resulting `.bin` file.
-3. Run `npm run firmware:release -- 1.0.4 /absolute/path/to/compiled.bin "HX1838 receive diagnostics"`.
+   resulting `.bin` file, with **USB CDC On Boot** enabled in the board options.
+3. Run `npm run firmware:release -- <version> /absolute/path/to/compiled.bin "HX1838 USB serial diagnostics"`.
    The command checks the sketch version, copies the versioned binary into
    `firmware/releases/esp32-ac-01/`, and writes its name, SHA-256, and version
    to the manifest.

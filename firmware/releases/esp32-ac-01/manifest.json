@@ -1,8 +1,8 @@
 {
   "board": "esp32-s3",
   "enabled": true,
-  "name": "HX1838 receive diagnostics",
-  "version": "1.0.4",
-  "firmware_path": "/firmware/esp32-ac-01/drawbook-v1.0.4.bin",
-  "sha256": "484fb1c64f5b2a1c73c9c01039eed0e08c2f49e053d1dc76033dd11fd82c5045"
+  "name": "HX1838 USB serial diagnostics",
+  "version": "1.0.5",
+  "firmware_path": "/firmware/esp32-ac-01/drawbook-v1.0.5.bin",
+  "sha256": "fe6dd49aab0d8039522fa2282af155f9894a6593a19eb21327c8c905131bfcad"
 }

@@ -62,10 +62,10 @@ release guide.
   `mbedtls_sha256_finish`; the `_ret` variants failed to compile here. Keep the
   non-`_ret` calls in `FirmwareOTA.h` for this core unless the core API changes.
 
-## Current firmware: HX1838 receive diagnostics 1.0.4
+## Current firmware: HX1838 USB serial diagnostics 1.0.5
 
-- Firmware version in `esp32_drawbook.ino`: `1.0.4`.
-- Release name: `HX1838 receive diagnostics`.
+- Firmware version in `esp32_drawbook.ino`: `1.0.5`.
+- Release name: `HX1838 USB serial diagnostics`.
 - IR receive pin: GPIO7. `IRReceiverFeature.h` uses the existing IRremoteESP8266
   2.9.0 dependency, a 4096-entry capture buffer, and a 100 ms timeout. The raw
   timing capture remains available in RAM through the feature's accessors until
@@ -86,25 +86,28 @@ release guide.
 - The OLED keeps its current waiting screen or last Drawbook frame indefinitely
   until another event changes it.
 - Release binary is generated at
-  `firmware/releases/esp32-ac-01/drawbook-v1.0.4.bin`.
+  `firmware/releases/esp32-ac-01/drawbook-v1.0.5.bin`.
 - Release manifest:
-  `firmware/releases/esp32-ac-01/manifest.json` (target version 1.0.4).
-- The binary was compiled with Arduino-ESP32 core 3.3.12 and FQBN
-  `esp32:esp32:esp32s3`, using the default 4 MB partition scheme. The binary is
-  1,208,736 bytes; the compile report used 1,208,593 of 1,310,720 app bytes,
-  leaving about 102 KB before the OTA app slot limit. Keep the increased raw
-  capture buffer within the same partition layout.
+  `firmware/releases/esp32-ac-01/manifest.json` (target version 1.0.5).
+- Build with Arduino-ESP32 core 3.3.12 and FQBN
+  `esp32:esp32:esp32s3`, explicitly setting `USBMode=hwcdc,CDCOnBoot=cdc`.
+  The 1.0.4 build used `build.cdc_on_boot=0`, which routed `Serial` away from
+  the native USB CDC port. This is why the OLED ran while USB showed only ROM
+  output. Keep the existing OTA-compatible 4 MB partition layout and the raw
+  capture buffer within the same app slot.
   Match the board and OTA partition settings used by the installed device when
   building later firmware; do not publish a binary built for a different
   partition layout.
-- Firmware 1.0.4 is built and prepared for deployment to Railway.
+- Firmware 1.0.5 enables native USB CDC for Serial logs. The existing OTA
+  mechanism, Wi-Fi, WebSocket, OLED, and Drawbook remain enabled.
 
 ## Publish and verify a future OTA release
 
 1. Update `FIRMWARE_VERSION` in `firmware/esp32_drawbook/esp32_drawbook.ino`.
 2. Compile for the same ESP32-S3 board settings and OTA partition scheme as
-   the installed firmware. Export the application `.bin`; do not use the
-   merged flash image.
+   the installed firmware. Include
+   `--board-options 'USBMode=hwcdc,CDCOnBoot=cdc'` to route `Serial` to USB.
+   Export the application `.bin`; do not use the merged flash image.
 3. Publish it with:
 
    ```sh
@@ -118,7 +121,7 @@ release guide.
    so its `/firmware` route serves the release. Keep the device on its older
    firmware until the release is deployed.
 5. Restart the board. Monitor Serial at 115200 baud for an OTA log such as
-   `[OTA] Updating HX1838 receive diagnostics (version 1.0.4).` After reboot,
+   `[OTA] Updating HX1838 USB serial diagnostics (version 1.0.5).` After reboot,
    confirm the expected firmware behavior. If not restarted, the next check can
    take up to six hours.
 
@@ -130,7 +133,9 @@ release guide.
 
   ```sh
   "/Applications/Arduino IDE.app/Contents/Resources/app/lib/backend/resources/arduino-cli" \
-    compile --fqbn esp32:esp32:esp32s3 --output-dir /tmp/esp32-drawbook-build \
+    compile --fqbn esp32:esp32:esp32s3 \
+    --board-options 'USBMode=hwcdc,CDCOnBoot=cdc' \
+    --output-dir /tmp/esp32-drawbook-build \
     firmware/esp32_drawbook
   ```
 
