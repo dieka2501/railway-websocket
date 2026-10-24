@@ -1,8 +1,8 @@
 {
   "board": "esp32-s3",
   "enabled": true,
-  "name": "HX1838 IR receiver capture",
-  "version": "1.0.2",
-  "firmware_path": "/firmware/esp32-ac-01/drawbook-v1.0.2.bin",
-  "sha256": "5fca6166e19ca02d53b538b5e5c2715e3f03269aa38ae8f235306a8df8395b56"
+  "name": "IR diagnostics and boot version screen",
+  "version": "1.0.3",
+  "firmware_path": "/firmware/esp32-ac-01/drawbook-v1.0.3.bin",
+  "sha256": "d8990a2d14a82b4f1cc7ef6827edce23ff2f65e16214e69eef2b8078e999b425"
 }

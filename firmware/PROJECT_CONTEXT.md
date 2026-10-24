@@ -62,39 +62,38 @@ release guide.
   `mbedtls_sha256_finish`; the `_ret` variants failed to compile here. Keep the
   non-`_ret` calls in `FirmwareOTA.h` for this core unless the core API changes.
 
-## Current firmware: HX1838 IR capture 1.0.2
+## Current firmware: IR diagnostics and boot version screen 1.0.3
 
-- Firmware version in `esp32_drawbook.ino`: `1.0.2`.
-- Release name: `HX1838 IR receiver capture`.
+- Firmware version in `esp32_drawbook.ino`: `1.0.3`.
+- Release name: `IR diagnostics and boot version screen`.
 - IR receive pin: GPIO7. `IRReceiverFeature.h` uses IRremoteESP8266 2.9.0,
   a 1024-entry capture buffer, and a 50 ms timeout. The saved raw timing data
   remains available in RAM through the feature's accessors until another
   capture replaces it. Unknown protocols use the library's hash fallback and
   keep the raw timing buffer.
-- OLED: startup, waiting, decoded/unknown result, and two short raw timing
-  pages are rendered through the existing SSD1306 display. Drawbook frames
-  still render normally; an IR capture temporarily takes the display, and the
-  existing screen saver resumes after 25 seconds of inactivity.
+- OLED: shows the firmware version for at least five seconds on every boot,
+  including during Wi-Fi connection. It then shows waiting, decoded/unknown
+  results, or two raw timing pages. Drawbook frames still render normally; an
+  IR capture temporarily takes the display. No inactivity running text is used.
+- IR diagnostics: startup logs the GPIO7 idle level; a successful capture logs
+  `IR RECEIVED`, protocol, bit count, raw length, overflow status, and a timing
+  preview. A receiver idle level of LOW can indicate a wiring or module issue.
 - Joystick: no joystick integration exists in this firmware, so IR capture is
   independent of it.
-- When the gateway has registered the device as online and no valid Drawbook
-  frame arrives for 25 seconds, the OLED scrolls `Sudah 25 detik nih!` from
-  right to left and repeats. Each valid frame or IR capture resets the idle
-  timer and replaces the saver immediately.
-- Scroll step interval: 40 ms.
-- Release binary: `firmware/releases/esp32-ac-01/drawbook-v1.0.2.bin`.
+- The OLED keeps its current waiting screen or last Drawbook frame indefinitely
+  until another event changes it.
+- Release binary: `firmware/releases/esp32-ac-01/drawbook-v1.0.3.bin`.
 - Release manifest:
-  `firmware/releases/esp32-ac-01/manifest.json` (currently enabled for 1.0.2).
+  `firmware/releases/esp32-ac-01/manifest.json` (currently enabled for 1.0.3).
 - The binary was compiled with Arduino-ESP32 core 3.3.12 and FQBN
   `esp32:esp32:esp32s3`, using the default 4 MB partition scheme. The binary is
-  1,208,336 bytes; the compile report used 1,208,193 of 1,310,720 app bytes for
-  firmware 1.0.2, leaving about 102 KB before the OTA app slot limit.
+  1,208,224 bytes; the compile report used 1,208,081 of 1,310,720 app bytes for
+  firmware 1.0.3, leaving about 102 KB before the OTA app slot limit.
   Match the board and OTA partition settings used by the installed device when
   building later firmware; do not publish a binary built for a different
   partition layout.
-- The initial OTA-capable 1.0.0 firmware was reported to compile, upload, and
-  connect successfully. The 1.0.1 OTA release was prepared locally; the 1.0.2
-  IR release must be deployed to Railway before the device can receive it.
+- Firmware 1.0.2 was built and prepared for OTA. Firmware 1.0.3 is built and
+  prepared for deployment to Railway.
 
 ## Publish and verify a future OTA release
 
@@ -115,7 +114,7 @@ release guide.
    so its `/firmware` route serves the release. Keep the device on its older
    firmware until the release is deployed.
 5. Restart the board. Monitor Serial at 115200 baud for an OTA log such as
-   `[OTA] Updating HX1838 IR receiver capture (version 1.0.2).` After reboot,
+   `[OTA] Updating IR diagnostics and boot version screen (version 1.0.3).` After reboot,
    confirm the expected firmware behavior. If not restarted, the next check can
    take up to six hours.
 

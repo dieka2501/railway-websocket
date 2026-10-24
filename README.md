@@ -67,18 +67,19 @@ registers as `esp32-ac-01`.
 
 The HX1838 infrared receiver OUT pin connects to GPIO7. The sketch starts IR
 capture in receive-only mode and keeps the existing Drawbook, Wi-Fi, Railway
-WebSocket, and online firmware update features. The OLED shows an IR waiting
-screen with Wi-Fi/gateway status, then displays the detected protocol and
-decoded fields or an UNKNOWN/raw timing summary. It also rotates through the
-first six raw timings. The complete latest raw capture remains in RAM until
-the next IR capture or reboot; a Drawbook frame can take over the OLED without
-discarding the timing data. Serial at 115200 baud provides secondary capture
-details and a raw timing preview. No joystick is required for capture.
+WebSocket, and online firmware update features. On every boot the OLED shows
+the firmware version during startup. It then shows IR waiting status with
+Wi-Fi/gateway status, the detected protocol and decoded fields, or an
+UNKNOWN/raw timing summary. It also rotates through the first six raw timings.
+The complete latest raw capture remains in RAM until the next IR capture or
+reboot; a Drawbook frame can take over the OLED without discarding the timing
+data. Serial at 115200 baud provides receiver diagnostics and capture details.
+No joystick is required for capture.
 
 ### Test the IR receiver
 
 Confirm the HX1838 VCC is on 3V3, GND is shared with the ESP32, and OUT is on
-GPIO7. Boot firmware 1.0.2, point an AC remote at the receiver, and press a
+GPIO7. Boot firmware 1.0.3, point an AC remote at the receiver, and press a
 button once. The OLED briefly shows `IR DETECTED / Decoding...`, then the
 protocol and bit count or an `UNKNOWN IR` raw-count page; it automatically
 shows two pages with the first six captured timings. The full timing buffer is
@@ -100,9 +101,8 @@ not need to be compiled into or published with firmware binaries.
 
 After it connects, the Drawbook should report the device as online. A frame is
 128 × 32 pixels, sent as 4096 `0`/`1` characters, then rendered on the OLED.
-When the gateway is online and no new Drawbook frame or IR capture arrives for
-25 seconds, the OLED scrolls `Sudah 25 detik nih!` from right to left. A new
-frame or IR capture replaces the screen saver immediately.
+When no new Drawbook frame or IR capture arrives, the OLED keeps its current
+waiting screen or last Drawbook frame. There is no inactivity running text.
 
 ## Firmware auto-update
 
@@ -112,8 +112,8 @@ firmware checks the public release manifest at
 installs a newer `MAJOR.MINOR.PATCH` release for the `esp32-s3` board. The
 download uses the same verified HTTPS root certificate as the gateway and
 checks the binary's SHA-256 from the manifest before flashing. The current
-manifest enables release 1.0.2,
-`HX1838 IR receiver capture`. Deploy the release files and gateway changes
+manifest enables release 1.0.3,
+`IR diagnostics and boot version screen`. Deploy the release files and gateway changes
 before restarting the device to receive it.
 To install it online, commit the source, release binary, and manifest together,
 then deploy the existing Railway service. Restart the ESP32 while it has Wi-Fi
@@ -123,11 +123,11 @@ SHA-256, installs the newer firmware, and restarts using the existing updater.
 To publish a release:
 
 1. Increase `FIRMWARE_VERSION` in `firmware/esp32_drawbook/esp32_drawbook.ino`
-   (for example, from `1.0.1` to `1.0.2`) and compile the sketch for the same
+   (for example, from `1.0.2` to `1.0.3`) and compile the sketch for the same
    ESP32-S3 board and OTA-capable partition scheme used for the device.
 2. In Arduino IDE, use **Sketch → Export compiled Binary** and locate the
    resulting `.bin` file.
-3. Run `npm run firmware:release -- 1.0.2 /absolute/path/to/compiled.bin "HX1838 IR receiver capture"`.
+3. Run `npm run firmware:release -- 1.0.3 /absolute/path/to/compiled.bin "IR diagnostics and boot version screen"`.
    The command checks the sketch version, copies the versioned binary into
    `firmware/releases/esp32-ac-01/`, and writes its name, SHA-256, and version
    to the manifest.

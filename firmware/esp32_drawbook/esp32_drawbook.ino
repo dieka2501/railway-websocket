@@ -16,11 +16,9 @@ constexpr int OLED_WIDTH = 128;
 constexpr int OLED_HEIGHT = 32;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 constexpr size_t FRAME_SIZE = OLED_WIDTH * OLED_HEIGHT;
-constexpr char FIRMWARE_VERSION[] = "1.0.2";
+constexpr char FIRMWARE_VERSION[] = "1.0.3";
 constexpr char FIRMWARE_BOARD[] = "esp32-s3";
-constexpr unsigned long SCREEN_SAVER_IDLE_MS = 25000;
-constexpr unsigned long SCREEN_SAVER_SCROLL_MS = 40;
-const char* SCREEN_SAVER_TEXT = "Sudah 25 detik nih!";
+constexpr unsigned long BOOT_VERSION_SCREEN_MS = 5000;
 
 const char* DEVICE_ID = "esp32-ac-01";
 const char* GATEWAY_HOST = "railway-websocket-production.up.railway.app";
@@ -79,14 +77,24 @@ FirmwareOTA firmwareOTA(
 unsigned long lastWiFiAttempt = 0;
 bool wasWiFiConnected = false;
 bool gatewayOnline = false;
-bool screenSaverActive = false;
 bool drawbookVisible = false;
-unsigned long lastScreenActivity = 0;
-unsigned long lastScreenSaverStep = 0;
-int16_t screenSaverX = OLED_WIDTH;
-uint16_t screenSaverTextWidth = 0;
+bool holdBootVersionScreen = false;
+bool versionScreenStarted = false;
+unsigned long versionScreenStartedAt = 0;
+bool pendingDrawFrame = false;
+String pendingDrawPixels;
+
+bool bootVersionScreenActive() {
+  return holdBootVersionScreen ||
+         (versionScreenStarted && millis() - versionScreenStartedAt < BOOT_VERSION_SCREEN_MS);
+}
 
 void showStatus(const char* line1, const char* line2 = "") {
+  if (bootVersionScreenActive()) {
+    irReceiver.invalidateDisplay();
+    return;
+  }
+
   drawbookVisible = false;
   display.clearDisplay();
   display.setTextSize(1);
@@ -145,6 +153,13 @@ void diagnoseGatewayTLS() {
 }
 
 void drawFrame(const String& pixels) {
+  if (bootVersionScreenActive()) {
+    pendingDrawPixels = pixels;
+    pendingDrawFrame = true;
+    Serial.println("Draw frame queued until startup version screen finishes.");
+    return;
+  }
+
   irReceiver.dismissCapture();
   drawbookVisible = true;
   display.clearDisplay();
@@ -159,48 +174,11 @@ void drawFrame(const String& pixels) {
   display.display();
 }
 
-void updateScreenSaver() {
-  if (!gatewayOnline) return;
-
-  const unsigned long now = millis();
-  if (!screenSaverActive) {
-    if (now - lastScreenActivity < SCREEN_SAVER_IDLE_MS) return;
-
-    screenSaverActive = true;
-    screenSaverX = OLED_WIDTH;
-    display.setTextSize(1);
-    display.setTextWrap(false);
-    int16_t boundsX = 0;
-    int16_t boundsY = 0;
-    uint16_t boundsHeight = 0;
-    display.getTextBounds(SCREEN_SAVER_TEXT, 0, 0, &boundsX, &boundsY, &screenSaverTextWidth, &boundsHeight);
-    lastScreenSaverStep = now - SCREEN_SAVER_SCROLL_MS;
-    Serial.println("Screen saver started after 25 seconds of inactivity.");
-  }
-
-  if (now - lastScreenSaverStep < SCREEN_SAVER_SCROLL_MS) return;
-  lastScreenSaverStep = now;
-
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextWrap(false);
-  display.setCursor(screenSaverX, 12);
-  display.print(SCREEN_SAVER_TEXT);
-  display.display();
-
-  screenSaverX -= 1;
-  if (screenSaverX < -static_cast<int16_t>(screenSaverTextWidth)) {
-    screenSaverX = OLED_WIDTH;
-  }
-}
-
 void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_CONNECTED: {
       Serial.printf("Connected to WSS %s:%u%s\n", GATEWAY_HOST, GATEWAY_PORT, GATEWAY_PATH);
       gatewayOnline = false;
-      screenSaverActive = false;
       showStatus("Gateway connected", "Registering...");
 
       String registration;
@@ -217,7 +195,6 @@ void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
     case WStype_DISCONNECTED:
       Serial.println("Disconnected from gateway; reconnect will be retried.");
       gatewayOnline = false;
-      screenSaverActive = false;
       showStatus("Gateway offline", "Retrying...");
       break;
 
@@ -228,7 +205,6 @@ void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
       if (message.indexOf("\"type\":\"error\"") >= 0) {
         Serial.println(message);
         gatewayOnline = false;
-        screenSaverActive = false;
         showStatus("Gateway error", "Check token/logs");
         break;
       }
@@ -236,13 +212,10 @@ void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
       if (message.indexOf("\"type\":\"device_status\"") >= 0) {
         if (message.indexOf("\"status\":\"online\"") >= 0) {
           gatewayOnline = true;
-          screenSaverActive = false;
-          lastScreenActivity = millis();
           Serial.println("Device registered and online.");
           showStatus("Gateway online", "Ready for Drawbook");
         } else {
           gatewayOnline = false;
-          screenSaverActive = false;
           showStatus("Gateway offline", "Retrying...");
         }
         break;
@@ -275,8 +248,6 @@ void handleWebSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
         }
       }
 
-      lastScreenActivity = millis();
-      screenSaverActive = false;
       drawFrame(pixels);
       Serial.println("Draw frame displayed on OLED.");
       break;
@@ -302,6 +273,7 @@ void setup() {
   }
   irReceiver.begin();
   irReceiver.showStartup(FIRMWARE_VERSION);
+  holdBootVersionScreen = true;
   Serial.println("HX1838 IR Receiver Test");
   Serial.println("GPIO: 7");
   Serial.println("OLED: 128x32");
@@ -311,6 +283,7 @@ void setup() {
   Serial.println("Waiting for IR...");
 
   if (!deviceConfig.load()) {
+    holdBootVersionScreen = false;
     showStatus("Configure by USB", "Serial 115200");
     deviceConfig.provisionFromSerial();
   }
@@ -340,13 +313,19 @@ void setup() {
     GATEWAY_PATH,
     LETS_ENCRYPT_ROOT_CA
   );
+
+  versionScreenStartedAt = millis();
+  versionScreenStarted = true;
+  holdBootVersionScreen = false;
+  irReceiver.showStartup(FIRMWARE_VERSION);
+  Serial.printf("Startup OLED firmware version screen shown for %lu ms.\n",
+                BOOT_VERSION_SCREEN_MS);
 }
 
 void loop() {
-  if (irReceiver.poll()) {
+  const bool showVersionScreen = bootVersionScreenActive();
+  if (irReceiver.poll(!showVersionScreen)) {
     drawbookVisible = false;
-    screenSaverActive = false;
-    lastScreenActivity = millis();
   }
 
   webSocket.loop();
@@ -375,11 +354,19 @@ void loop() {
 
   // Check only after WiFi reconnect handling has had a chance to sync the clock for TLS.
   firmwareOTA.loop();
-  if (!irReceiver.hasCapture()) updateScreenSaver();
+
+  if (!bootVersionScreenActive() && pendingDrawFrame) {
+    String pixels = pendingDrawPixels;
+    pendingDrawPixels = "";
+    pendingDrawFrame = false;
+    drawFrame(pixels);
+  }
+
   irReceiver.updateDisplay(
     WiFi.status() == WL_CONNECTED,
     gatewayOnline,
-    !drawbookVisible && !screenSaverActive
+    !drawbookVisible && !bootVersionScreenActive(),
+    !bootVersionScreenActive()
   );
   delay(2);
 }

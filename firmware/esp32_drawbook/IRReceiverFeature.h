@@ -23,6 +23,10 @@ class IRReceiverFeature {
 #endif
     receiver_.enableIRIn();
     Serial.printf("HX1838 IR receiver started on GPIO %u.\n", RECEIVER_PIN);
+    delay(10);
+    Serial.printf("[IR] GPIO%u idle level: %s\n", RECEIVER_PIN,
+                  digitalRead(RECEIVER_PIN) == HIGH ? "HIGH" : "LOW (check wiring)");
+    Serial.println("[IR] Press a remote button; decoded frames print as IR RECEIVED.");
   }
 
   void showStartup(const char* firmwareVersion) {
@@ -41,7 +45,7 @@ class IRReceiverFeature {
 
   // Poll once on every main-loop pass. IRrecv copies its interrupt buffer and
   // resumes capture before decoding, so Wi-Fi/WebSocket work can keep running.
-  bool poll() {
+  bool poll(bool showIntro = true) {
     decode_results result;
     if (!receiver_.decode(&result)) return false;
 
@@ -64,13 +68,15 @@ class IRReceiverFeature {
     captureStartedAt_ = millis();
     renderedCapturePage_ = -1;
     waitingRendered_ = false;
-    renderCaptureIntro();
+    if (showIntro) renderCaptureIntro();
     logCapture();
     return true;
   }
 
-  void updateDisplay(bool wifiConnected, bool gatewayOnline, bool allowWaiting) {
+  void updateDisplay(bool wifiConnected, bool gatewayOnline, bool allowWaiting,
+                     bool allowCaptureDisplay = true) {
     if (captured_) {
+      if (!allowCaptureDisplay) return;
       const unsigned long elapsed = millis() - captureStartedAt_;
       if (elapsed < INTRO_DURATION_MS) return;
 
