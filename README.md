@@ -60,9 +60,31 @@ received frames on the SSD1306 OLED is in `firmware/esp32_drawbook/`.
 
 Install the Arduino libraries
 `WebSockets` by Markus Sattler (Links2004), `Adafruit GFX Library`,
-`Adafruit SSD1306`, and `ArduinoJson` in Arduino IDE. Select an ESP32-S3
-partition scheme with OTA support. The sketch uses TLS certificate validation
-for the Railway WSS connection and registers as `esp32-ac-01`.
+`Adafruit SSD1306`, `ArduinoJson`, and `IRremoteESP8266` 2.9.0 in Arduino IDE.
+Select the same ESP32-S3 partition scheme with OTA support used by the device.
+The sketch uses TLS certificate validation for the Railway WSS connection and
+registers as `esp32-ac-01`.
+
+The HX1838 infrared receiver OUT pin connects to GPIO7. The sketch starts IR
+capture in receive-only mode and keeps the existing Drawbook, Wi-Fi, Railway
+WebSocket, and online firmware update features. The OLED shows an IR waiting
+screen with Wi-Fi/gateway status, then displays the detected protocol and
+decoded fields or an UNKNOWN/raw timing summary. It also rotates through the
+first six raw timings. The complete latest raw capture remains in RAM until
+the next IR capture or reboot; a Drawbook frame can take over the OLED without
+discarding the timing data. Serial at 115200 baud provides secondary capture
+details and a raw timing preview. No joystick is required for capture.
+
+### Test the IR receiver
+
+Confirm the HX1838 VCC is on 3V3, GND is shared with the ESP32, and OUT is on
+GPIO7. Boot firmware 1.0.2, point an AC remote at the receiver, and press a
+button once. The OLED briefly shows `IR DETECTED / Decoding...`, then the
+protocol and bit count or an `UNKNOWN IR` raw-count page; it automatically
+shows two pages with the first six captured timings. The full timing buffer is
+kept in RAM for the next learning step. Serial Monitor at 115200 baud reports
+the protocol, raw length, and a timing preview. This firmware only receives IR
+signals; it does not transmit them.
 
 On the first USB flash, open Serial Monitor at 115200 baud, set line ending to
 **Newline**, and send one JSON line with the Wi-Fi and Railway device token,
@@ -78,9 +100,9 @@ not need to be compiled into or published with firmware binaries.
 
 After it connects, the Drawbook should report the device as online. A frame is
 128 × 32 pixels, sent as 4096 `0`/`1` characters, then rendered on the OLED.
-When the gateway is online and no new Drawbook frame arrives for 25 seconds,
-the OLED scrolls `Sudah 25 detik nih!` from right to left. A new frame replaces
-the screen saver immediately.
+When the gateway is online and no new Drawbook frame or IR capture arrives for
+25 seconds, the OLED scrolls `Sudah 25 detik nih!` from right to left. A new
+frame or IR capture replaces the screen saver immediately.
 
 ## Firmware auto-update
 
@@ -89,19 +111,23 @@ firmware checks the public release manifest at
 `/firmware/esp32-ac-01/manifest.json` at startup and every six hours. It only
 installs a newer `MAJOR.MINOR.PATCH` release for the `esp32-s3` board. The
 download uses the same verified HTTPS root certificate as the gateway and
-checks the binary's SHA-256 from the manifest before flashing. The initial
-manifest was disabled; the current local manifest enables release 1.0.1,
-`screen saver`. Deploy the release files and gateway changes before restarting
-the device to receive it.
+checks the binary's SHA-256 from the manifest before flashing. The current
+manifest enables release 1.0.2,
+`HX1838 IR receiver capture`. Deploy the release files and gateway changes
+before restarting the device to receive it.
+To install it online, commit the source, release binary, and manifest together,
+then deploy the existing Railway service. Restart the ESP32 while it has Wi-Fi
+and a valid clock, or let its six-hour check run. It validates the manifest and
+SHA-256, installs the newer firmware, and restarts using the existing updater.
 
 To publish a release:
 
 1. Increase `FIRMWARE_VERSION` in `firmware/esp32_drawbook/esp32_drawbook.ino`
-   (for example, from `1.0.0` to `1.0.1`) and compile the sketch for the same
+   (for example, from `1.0.1` to `1.0.2`) and compile the sketch for the same
    ESP32-S3 board and OTA-capable partition scheme used for the device.
 2. In Arduino IDE, use **Sketch → Export compiled Binary** and locate the
    resulting `.bin` file.
-3. Run `npm run firmware:release -- 1.0.1 /absolute/path/to/compiled.bin "screen saver"`.
+3. Run `npm run firmware:release -- 1.0.2 /absolute/path/to/compiled.bin "HX1838 IR receiver capture"`.
    The command checks the sketch version, copies the versioned binary into
    `firmware/releases/esp32-ac-01/`, and writes its name, SHA-256, and version
    to the manifest.

@@ -7,6 +7,7 @@
 #include <Adafruit_SSD1306.h>
 #include "DeviceConfig.h"
 #include "FirmwareOTA.h"
+#include "IRReceiverFeature.h"
 
 constexpr int SDA_PIN = 8;
 constexpr int SCL_PIN = 9;
@@ -15,7 +16,7 @@ constexpr int OLED_WIDTH = 128;
 constexpr int OLED_HEIGHT = 32;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 constexpr size_t FRAME_SIZE = OLED_WIDTH * OLED_HEIGHT;
-constexpr char FIRMWARE_VERSION[] = "1.0.1";
+constexpr char FIRMWARE_VERSION[] = "1.0.2";
 constexpr char FIRMWARE_BOARD[] = "esp32-s3";
 constexpr unsigned long SCREEN_SAVER_IDLE_MS = 25000;
 constexpr unsigned long SCREEN_SAVER_SCROLL_MS = 40;
@@ -63,6 +64,7 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 )CERT";
 
 Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
+IRReceiverFeature irReceiver(display);
 WebSocketsClient webSocket;
 DeviceConfig deviceConfig;
 FirmwareOTA firmwareOTA(
@@ -78,12 +80,14 @@ unsigned long lastWiFiAttempt = 0;
 bool wasWiFiConnected = false;
 bool gatewayOnline = false;
 bool screenSaverActive = false;
+bool drawbookVisible = false;
 unsigned long lastScreenActivity = 0;
 unsigned long lastScreenSaverStep = 0;
 int16_t screenSaverX = OLED_WIDTH;
 uint16_t screenSaverTextWidth = 0;
 
 void showStatus(const char* line1, const char* line2 = "") {
+  drawbookVisible = false;
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -92,6 +96,7 @@ void showStatus(const char* line1, const char* line2 = "") {
   display.setCursor(0, 12);
   display.println(line2);
   display.display();
+  irReceiver.invalidateDisplay();
 }
 
 void connectWiFi() {
@@ -140,6 +145,8 @@ void diagnoseGatewayTLS() {
 }
 
 void drawFrame(const String& pixels) {
+  irReceiver.dismissCapture();
+  drawbookVisible = true;
   display.clearDisplay();
   for (int y = 0; y < OLED_HEIGHT; ++y) {
     for (int x = 0; x < OLED_WIDTH; ++x) {
@@ -293,7 +300,15 @@ void setup() {
     Serial.println("OLED initialization failed.");
     while (true) delay(1000);
   }
-  showStatus("ESP32 Drawbook", "Starting...");
+  irReceiver.begin();
+  irReceiver.showStartup(FIRMWARE_VERSION);
+  Serial.println("HX1838 IR Receiver Test");
+  Serial.println("GPIO: 7");
+  Serial.println("OLED: 128x32");
+  Serial.println("OLED Address: 0x3C");
+  Serial.printf("FW: %s\n", FIRMWARE_VERSION);
+  Serial.println("OTA: ENABLED (existing FirmwareOTA)");
+  Serial.println("Waiting for IR...");
 
   if (!deviceConfig.load()) {
     showStatus("Configure by USB", "Serial 115200");
@@ -328,6 +343,12 @@ void setup() {
 }
 
 void loop() {
+  if (irReceiver.poll()) {
+    drawbookVisible = false;
+    screenSaverActive = false;
+    lastScreenActivity = millis();
+  }
+
   webSocket.loop();
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -354,6 +375,11 @@ void loop() {
 
   // Check only after WiFi reconnect handling has had a chance to sync the clock for TLS.
   firmwareOTA.loop();
-  updateScreenSaver();
+  if (!irReceiver.hasCapture()) updateScreenSaver();
+  irReceiver.updateDisplay(
+    WiFi.status() == WL_CONNECTED,
+    gatewayOnline,
+    !drawbookVisible && !screenSaverActive
+  );
   delay(2);
 }

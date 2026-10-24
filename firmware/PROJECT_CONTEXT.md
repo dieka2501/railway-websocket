@@ -62,31 +62,39 @@ release guide.
   `mbedtls_sha256_finish`; the `_ret` variants failed to compile here. Keep the
   non-`_ret` calls in `FirmwareOTA.h` for this core unless the core API changes.
 
-## Current firmware: screen saver 1.0.1
+## Current firmware: HX1838 IR capture 1.0.2
 
-- Firmware version in `esp32_drawbook.ino`: `1.0.1`.
-- Release name: `screen saver`.
+- Firmware version in `esp32_drawbook.ino`: `1.0.2`.
+- Release name: `HX1838 IR receiver capture`.
+- IR receive pin: GPIO7. `IRReceiverFeature.h` uses IRremoteESP8266 2.9.0,
+  a 1024-entry capture buffer, and a 50 ms timeout. The saved raw timing data
+  remains available in RAM through the feature's accessors until another
+  capture replaces it. Unknown protocols use the library's hash fallback and
+  keep the raw timing buffer.
+- OLED: startup, waiting, decoded/unknown result, and two short raw timing
+  pages are rendered through the existing SSD1306 display. Drawbook frames
+  still render normally; an IR capture temporarily takes the display, and the
+  existing screen saver resumes after 25 seconds of inactivity.
+- Joystick: no joystick integration exists in this firmware, so IR capture is
+  independent of it.
 - When the gateway has registered the device as online and no valid Drawbook
   frame arrives for 25 seconds, the OLED scrolls `Sudah 25 detik nih!` from
-  right to left and repeats. Each valid frame resets the idle timer and
-  replaces the saver immediately.
+  right to left and repeats. Each valid frame or IR capture resets the idle
+  timer and replaces the saver immediately.
 - Scroll step interval: 40 ms.
-- Release binary:
-  `firmware/releases/esp32-ac-01/drawbook-v1.0.1.bin`.
+- Release binary: `firmware/releases/esp32-ac-01/drawbook-v1.0.2.bin`.
 - Release manifest:
-  `firmware/releases/esp32-ac-01/manifest.json` (currently enabled for 1.0.1).
+  `firmware/releases/esp32-ac-01/manifest.json` (currently enabled for 1.0.2).
 - The binary was compiled with Arduino-ESP32 core 3.3.12 and FQBN
   `esp32:esp32:esp32s3`, using the default 4 MB partition scheme. The binary is
-  1,151,680 bytes; the compile report used 1,151,537 of 1,310,720 app bytes.
+  1,208,336 bytes; the compile report used 1,208,193 of 1,310,720 app bytes for
+  firmware 1.0.2, leaving about 102 KB before the OTA app slot limit.
   Match the board and OTA partition settings used by the installed device when
   building later firmware; do not publish a binary built for a different
   partition layout.
 - The initial OTA-capable 1.0.0 firmware was reported to compile, upload, and
-  connect successfully. The 1.0.1 OTA release has been prepared locally but
-  has not yet been confirmed installed on the device. The firmware-serving
-  server changes, release script, and 1.0.1 artifacts are still workspace
-  changes; deploy them to Railway before expecting the device to see the
-  release.
+  connect successfully. The 1.0.1 OTA release was prepared locally; the 1.0.2
+  IR release must be deployed to Railway before the device can receive it.
 
 ## Publish and verify a future OTA release
 
@@ -107,9 +115,9 @@ release guide.
    so its `/firmware` route serves the release. Keep the device on its older
    firmware until the release is deployed.
 5. Restart the board. Monitor Serial at 115200 baud for an OTA log such as
-   `[OTA] Updating screen saver (version 1.0.1).`; after reboot, confirm the
-   expected firmware behavior. If not restarted, the next check can take up to
-   six hours.
+   `[OTA] Updating HX1838 IR receiver capture (version 1.0.2).` After reboot,
+   confirm the expected firmware behavior. If not restarted, the next check can
+   take up to six hours.
 
 ## Build environment and troubleshooting
 
@@ -123,7 +131,7 @@ release guide.
     firmware/esp32_drawbook
   ```
 
-- Installed libraries previously used successfully: WebSockets by Links2004,
-  Adafruit GFX, Adafruit SSD1306, and ArduinoJson.
+- Installed libraries used successfully: WebSockets by Links2004, Adafruit GFX,
+  Adafruit SSD1306, ArduinoJson, and IRremoteESP8266 2.9.0.
 - If compile errors mention missing `mbedtls_sha256_*_ret` functions, use the
   non-`_ret` calls described above for the installed core.
